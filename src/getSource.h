@@ -38,4 +38,6 @@ Token nextToken();
 Token checkGet(Token t, KeyId k);
 int openSource(char fileName[]);
 void closeSource();
+void initSource();
+void finalSource();
 // TODO

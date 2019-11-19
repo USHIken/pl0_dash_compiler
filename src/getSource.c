@@ -65,6 +65,46 @@ static struct KeyWd KeyWdT[] = {
     {":=", Assign},
     {"$dummy2", end_of_KeySym}
 };
+
+int isKeyWd(KeyId k)
+{
+    return (k < end_of_KeyWd);
+}
+
+int isKeySym(KeyId k)
+{
+    if (k < end_of_KeyWd)
+        return 0;
+    return (k < end_of_KeySym);
+}
+
+static KeyId charClassT[256];
+
+static void initCharClassT()
+{
+    int i;
+    for (i=0; i<256; i++)
+        charClassT[i] = others;
+    for (i='0'; i<='9'; i++)
+        charClassT[i] = digit;
+    for (i='A'; i<='Z'; i++)
+        charClassT[i] = letter;
+    for (i='a'; i<='z'; i++)
+        charClassT[i] = letter;
+    charClassT['+'] = Plus;
+    charClassT['-'] = Minus;
+    charClassT['*'] = Mult;
+    charClassT['/'] = Div;
+    charClassT['('] = Rparen;
+    charClassT[')'] = Lparen;
+    charClassT['='] = Equal;
+    charClassT['<'] = Lss;
+    charClassT['>'] = Gtr;
+    charClassT[','] = Comma;
+    charClassT['.'] = Period;
+    charClassT[';'] = Semicolon;
+    charClassT[':'] = colon;
+}
 // TODO
 
 int openSource(char fileName[])
@@ -89,6 +129,31 @@ void closeSource()
     fclose(fptex);
 }
 
+void initSource()
+{
+    lineIndex = -1;
+    ch = '\n';
+    printed = 1;
+    initCharClassT();
+    fprintf(fptex, "\\documentstyle[12pt]{article}\n");
+    fprintf(fptex, "\\begin{document}\n");
+    fprintf(fptex, "\\fboxsep=0pt\n");
+    fprintf(fptex, "\\def\\insert#1{$\\fbox{#1}$}\n");
+    fprintf(fptex, "\\def\\delete#1{$\\fboxrule=.5mn\\fbox{#1}$}\n");
+    fprintf(fptex, "\\rm\n");
+}
+
+void finalSource()
+{
+    if (cToken.kind==Period)
+        printcToken();
+    else
+        errorInsert(Period);
+    fprintf(fptex, "\n\\end{document}\n");
+}
+
+// TODO
+
 void errorNoCheck()
 {
     if (errorNo++ > MAXERROR) {
@@ -105,7 +170,11 @@ void errorType(char *m)
 
 void errorInsert(KeyId k)
 {
-    // TODO
+    if (k < end_of_KeyWd)
+        fprintf(fptex, "\\ \\insert{{\\bf %s}}", KeyWdT[k].word);
+    else
+        fprintf(fptex, "\\ \\insert{$%s$}", KeyWdT[k].word);
+    errorNoCheck();
 }
 
 void errorMissingId()
@@ -161,3 +230,139 @@ char nextChar()
     }
     return ch;
 }
+
+Token nextToken()
+{
+    int i = 0;
+    int num;
+    KeyId cc;
+    Token temp;
+    char ident[MAXNAME];
+    printcToken();
+    spaces = 0; CR = 0;
+    while (1) {
+        if (ch == ' ')
+            spaces++;
+        else if (ch == '\t')
+            spaces+=TAB;
+        else if (ch == '\n') {
+            spaces = 0; CR++;
+        }
+        else break;
+        ch = nextChar();
+    }
+    switch (cc = charClassT[ch]) {
+    case letter:
+        do {
+            if (i < MAXNAME)
+                ident[i] = ch;
+            i++; ch = nextChar();
+        } while (charClassT[ch] == letter || charClassT[ch] == digit);
+        if (i >= MAXNAME) {
+            errorMessage("too long");
+            i = MAXNAME -1;
+        }
+        ident[i] = '\0';
+        for (i=0; i<end_of_KeyWd; i++)
+            if (strcmp(ident, KeyWdT[i].word) == 0) {
+                temp.kind = KeyWdT[i].keyId;
+                cToken = temp; printed = 0;
+                return temp;
+            }
+        temp.kind = Id;
+        strcpy(temp.u.id, ident);
+        break;
+    case digit:
+        num = 0;
+        do {
+            num = 10*num+(ch-'0');
+            i++; ch = nextChar();
+        } while (charClassT[ch] == digit);
+        if (i>MAXNUM)
+            errorMessage("too large");
+        temp.kind = Num;
+        temp.u.value = num;
+        break;
+    case colon:
+        if ((ch = nextChar()) == '=') {
+            ch = nextChar();
+            temp.kind = Assign;
+            break;
+        } else {
+            temp.kind = nul;
+            break;
+        }
+    case Lss:
+        if ((ch = nextChar()) == '=') {
+            ch = nextChar();
+            temp.kind = LssEq;
+            break;
+        } else if (ch == '>') {
+            ch = nextChar();
+            temp.kind = NotEq;
+            break;
+        } else {
+            temp.kind = Lss;
+            break;
+        }
+    case Gtr:
+        if ((ch = nextChar()) == '=') {
+            ch = nextChar();
+            temp.kind = GtrEq;
+            break;
+        } else {
+            temp.kind = Gtr;
+            break;
+        }
+    default:
+        temp.kind = cc;
+        ch = nextChar(); break;
+    }
+    cToken = temp; printed = 0;
+    return temp;
+}
+
+Token checkGet(Token t, KeyId k)
+{
+    // TODO
+    return t;
+}
+
+static void printSpaces()
+{
+    while (CR-- > 0)
+        fprintf(fptex, "\\ \\par\n");
+    while (spaces-- > 0)
+        fprintf(fptex, "\\ ");
+    CR = 0; spaces = 0;
+}
+
+void printcToken()
+{
+    int i = (int)cToken.kind;
+    if (printed) {
+        printed = 0; return;
+    }
+    printed = 1;
+    printSpaces();
+    if (i < end_of_KeyWd)
+        fprintf(fptex, "{\\bf %s}", KeyWdT[i].word);
+        //fprintf(fptex, "{\\bf %s}", KeyWdT[i].word);
+    else if (i < end_of_KeySym)
+        fprintf(fptex, "$%s$", KeyWdT[i].word);
+    else if (i==(int)Id) {
+        switch (idKind) {
+        case varId:
+            fprintf(fptex, "%s", cToken.u.id); return;
+        case parId:
+            fprintf(fptex, "{\\sl %s}", cToken.u.id); return;
+        case funcId:
+            fprintf(fptex, "{\\it %s}", cToken.u.id); return;
+        case constId:
+            fprintf(fptex, "{\\sf %s}", cToken.u.id); return;
+        }
+    } else if (i==(int)Num)
+        fprintf(fptex, "%d", cToken.u.value);
+}
+
+// TODO
