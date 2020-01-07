@@ -95,8 +95,8 @@ static void initCharClassT()
     charClassT['-'] = Minus;
     charClassT['*'] = Mult;
     charClassT['/'] = Div;
-    charClassT['('] = Rparen;
-    charClassT[')'] = Lparen;
+    charClassT['('] = Lparen;
+    charClassT[')'] = Rparen;
     charClassT['='] = Equal;
     charClassT['<'] = Lss;
     charClassT['>'] = Gtr;
@@ -105,7 +105,6 @@ static void initCharClassT()
     charClassT[';'] = Semicolon;
     charClassT[':'] = colon;
 }
-// TODO
 
 int openSource(char fileName[])
 {
@@ -139,7 +138,7 @@ void initSource()
     fprintf(fptex, "\\begin{document}\n");
     fprintf(fptex, "\\fboxsep=0pt\n");
     fprintf(fptex, "\\def\\insert#1{$\\fbox{#1}$}\n");
-    fprintf(fptex, "\\def\\delete#1{$\\fboxrule=.5mn\\fbox{#1}$}\n");
+    fprintf(fptex, "\\def\\delete#1{$\\fboxrule=.5mm\\fbox{#1}$}\n");
     fprintf(fptex, "\\rm\n");
 }
 
@@ -152,7 +151,20 @@ void finalSource()
     fprintf(fptex, "\n\\end{document}\n");
 }
 
-// TODO
+void error(char *m)
+{
+    if (lineIndex > 0)
+        printf("%*s\n", lineIndex, "***^");
+    else
+        printf("^\n");
+    printf("*** error *** %s\n", m);
+    errorNo++;
+    if (errorNo > MAXERROR) {
+        printf("too many errors\n");
+        printf("abort compilation\n");
+        exit (1);
+    }
+}
 
 void errorNoCheck()
 {
@@ -165,7 +177,11 @@ void errorNoCheck()
 
 void errorType(char *m)
 {
-    // TODO
+    printSpaces();
+    fprintf(fptex, "\\(\\stackrel{\\mbox{\\scriptsize %s}}{\\mbox{", m);
+    printcToken();
+    fprintf(fptex, "}}\\)");
+    errorNoCheck();
 }
 
 void errorInsert(KeyId k)
@@ -179,17 +195,29 @@ void errorInsert(KeyId k)
 
 void errorMissingId()
 {
-    // TODO
+    fprintf(fptex, "\\insert{Id}");
+    errorNoCheck();
 }
 
 void errorMissingOp()
 {
-    // TODO
+    fprintf(fptex, "\\insert{$\\otimes$}");
+    errorNoCheck();
 }
 
 void errorDelete()
 {
-    // TODO
+    int i  = (int)cToken.kind;
+    printSpaces();
+    printed = 1;
+    if (i < end_of_KeyWd)
+        fprintf(fptex, "\\delete{{\\bf %s}}", KeyWdT[i].word);
+    else if (i < end_of_KeySym)
+        fprintf(fptex, "\\delete{{$%s$}}", KeyWdT[i].word);
+    else if (i == (int)Id)
+        fprintf(fptex, "\\delete{{%s}}", cToken.u.id);
+    else if (i == (int)Num)
+        fprintf(fptex, "\\delete{%d}", cToken.u.value);
 }
 
 void errorMessage(char *m)
@@ -221,13 +249,14 @@ char nextChar()
             puts(line);
             lineIndex = 0;
         } else {
-            errorF("end of file\n"); // TODO
+            errorF("end of file\n");
         }
     }
     if ((ch = line[lineIndex++]) == '\n') {
         lineIndex = -1;
         return '\n';
     }
+    printf("[NOTE]nextChar = %c\n", ch);
     return ch;
 }
 
@@ -238,7 +267,9 @@ Token nextToken()
     KeyId cc;
     Token temp;
     char ident[MAXNAME];
+    printf("[NOTE]in nextToken, token is\n");
     printcToken();
+    printf("[NOTE]end token\n");
     spaces = 0; CR = 0;
     while (1) {
         if (ch == ' ')
@@ -284,6 +315,7 @@ Token nextToken()
         temp.u.value = num;
         break;
     case colon:
+        printf("[NOTE]got a colon!\n");
         if ((ch = nextChar()) == '=') {
             ch = nextChar();
             temp.kind = Assign;
@@ -324,7 +356,14 @@ Token nextToken()
 
 Token checkGet(Token t, KeyId k)
 {
-    // TODO
+    if (t.kind == k)
+        return nextToken();
+    if ((isKeyWd(k) && isKeyWd(t.kind)) || (isKeySym(k) && isKeySym(t.kind))) {
+        errorDelete();
+        errorInsert(k);
+        return nextToken();
+    }
+    errorInsert(k);
     return t;
 }
 
@@ -347,7 +386,6 @@ void printcToken()
     printSpaces();
     if (i < end_of_KeyWd)
         fprintf(fptex, "{\\bf %s}", KeyWdT[i].word);
-        //fprintf(fptex, "{\\bf %s}", KeyWdT[i].word);
     else if (i < end_of_KeySym)
         fprintf(fptex, "$%s$", KeyWdT[i].word);
     else if (i==(int)Id) {
@@ -365,4 +403,7 @@ void printcToken()
         fprintf(fptex, "%d", cToken.u.value);
 }
 
-// TODO
+void setIdKind (KindT k)
+{
+    idKind = k;
+}

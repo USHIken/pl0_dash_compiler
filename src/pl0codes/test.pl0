@@ -1,0 +1,5 @@
+var x;
+begin
+    x := 7;
+    write x;
+end.

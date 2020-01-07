@@ -40,4 +40,12 @@ int openSource(char fileName[]);
 void closeSource();
 void initSource();
 void finalSource();
-// TODO
+void errorType(char *m);
+void errorInsert(KeyId k);
+void errorMissingId();
+void errorMissingOp();
+void errorDelete();
+void errorMessage(char *m);
+void errorF(char *m);
+int errorN();
+void setIdKind(KindT k);
